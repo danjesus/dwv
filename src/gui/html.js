@@ -398,7 +398,7 @@ dwv.html.getUriParam = function(uri)
     // split key/value pairs
     var mainQueryPairs = dwv.utils.splitQueryString(inputUri);
     // check pairs
-    if( mainQueryPairs === null ) {
+    if( Object.keys(mainQueryPairs).length === 0 ) {
         return null;
     }
     // has to have an input key
@@ -432,17 +432,17 @@ dwv.html.decodeKeyValueUri = function(uri, replaceMode)
 {
     var result = [];
 
-    // decode input URI
-    var queryUri = decodeURIComponent(uri);
-    // get key/value pairs from input URI
-    var inputQueryPairs = dwv.utils.splitQueryString(queryUri);
     // repeat key replace mode (default to keep key)
     var repeatKeyReplaceMode = "key";
     if( replaceMode ) {
         repeatKeyReplaceMode = replaceMode;
     }
-    
-    if( !inputQueryPairs ) 
+
+    // decode input URI
+    var queryUri = decodeURIComponent(uri);
+    // get key/value pairs from input URI
+    var inputQueryPairs = dwv.utils.splitQueryString(queryUri);
+    if ( Object.keys(inputQueryPairs).length === 0 ) 
     {
         result.push(queryUri);
     }
@@ -526,46 +526,11 @@ dwv.html.decodeManifestUri = function(uri, nslices)
     // Request handler
     var onLoadRequest = function(/*event*/)
     {
-        var doc = this.responseXML;
-        // wado url
-        var wadoElement = doc.getElementsByTagName("wado_query");
-        var wadoURL = wadoElement[0].getAttribute("wadoURL");
-        var rootURL = wadoURL + "?requestType=WADO&contentType=application/dicom&";
-        // patient list
-        var patientList = doc.getElementsByTagName("Patient");
-        if( patientList.length > 1 ) {
-            console.warn("More than one patient, loading first one.");
-        }
-        // study list
-        var studyList = patientList[0].getElementsByTagName("Study");
-        if( studyList.length > 1 ) {
-            console.warn("More than one study, loading first one.");
-        }
-        var studyUID = studyList[0].getAttribute("StudyInstanceUID");
-        // series list
-        var seriesList = studyList[0].getElementsByTagName("Series");
-        if( seriesList.length > 1 ) {
-            console.warn("More than one series, loading first one.");
-        }
-        var seriesUID = seriesList[0].getAttribute("SeriesInstanceUID");
-        // instance list
-        var instanceList = seriesList[0].getElementsByTagName("Instance");
-        // loop on instances and push links
-        var max = instanceList.length;
-        if( nslices < max ) {
-            max = nslices;
-        }
-        for( var i = 0; i < max; ++i ) {
-            var sopInstanceUID = instanceList[i].getAttribute("SOPInstanceUID");
-            var link = rootURL + 
-            "&studyUID=" + studyUID +
-            "&seriesUID=" + seriesUID +
-            "&objectUID=" + sopInstanceUID;
-            result.push( link );
-        }
+        result = dwv.html.decodeManifest(this.responseXML, nslices);
     };
     
     var request = new XMLHttpRequest();
+    // synchronous request (third parameter)
     request.open('GET', decodeURIComponent(uri), false);
     request.responseType = "xml"; 
     request.onload = onLoadRequest;
@@ -578,17 +543,67 @@ dwv.html.decodeManifestUri = function(uri, nslices)
 };
 
 /**
+ * Decode an XML manifest. 
+ * @method decodeManifest
+ * @static
+ * @param {Object} manifest The manifest to decode.
+ * @param {Number} nslices The number of slices to load.
+ */
+dwv.html.decodeManifest = function(manifest, nslices)
+{
+    var result = [];
+    // wado url
+    var wadoElement = manifest.getElementsByTagName("wado_query");
+    var wadoURL = wadoElement[0].getAttribute("wadoURL");
+    var rootURL = wadoURL + "?requestType=WADO&contentType=application/dicom&";
+    // patient list
+    var patientList = manifest.getElementsByTagName("Patient");
+    if( patientList.length > 1 ) {
+        console.warn("More than one patient, loading first one.");
+    }
+    // study list
+    var studyList = patientList[0].getElementsByTagName("Study");
+    if( studyList.length > 1 ) {
+        console.warn("More than one study, loading first one.");
+    }
+    var studyUID = studyList[0].getAttribute("StudyInstanceUID");
+    // series list
+    var seriesList = studyList[0].getElementsByTagName("Series");
+    if( seriesList.length > 1 ) {
+        console.warn("More than one series, loading first one.");
+    }
+    var seriesUID = seriesList[0].getAttribute("SeriesInstanceUID");
+    // instance list
+    var instanceList = seriesList[0].getElementsByTagName("Instance");
+    // loop on instances and push links
+    var max = instanceList.length;
+    if( nslices < max ) {
+        max = nslices;
+    }
+    for( var i = 0; i < max; ++i ) {
+        var sopInstanceUID = instanceList[i].getAttribute("SOPInstanceUID");
+        var link = rootURL + 
+        "&studyUID=" + studyUID +
+        "&seriesUID=" + seriesUID +
+        "&objectUID=" + sopInstanceUID;
+        result.push( link );
+    }
+    // return
+    return result;
+};
+
+/**
  * Display or not an element.
  * @method displayElement
  * @static
  * @param {Number} id The id of the element to toggle its display.
- * @param {Boolean} bool True to display the element.
+ * @param {Boolean} flag True to display the element.
  */
-dwv.html.displayElement = function(id,bool)
+dwv.html.displayElement = function (id, flag)
 {
     var element = document.getElementById(id);
-    if( element ) {
-        element.style.display = bool ? "" : "none";
+    if ( element ) {
+        element.style.display = flag ? "" : "none";
     }
 };
 
@@ -598,16 +613,50 @@ dwv.html.displayElement = function(id,bool)
  * @static
  * @param {Number} id The id of the element to toggle its display.
  */
-dwv.html.toggleDisplay = function(id)
+dwv.html.toggleDisplay = function (id)
 {
-    if( document.getElementById(id) )
-    {
-        var div = document.getElementById(id);
-        if( div.style.display === "none" ) {
-            div.style.display = '';
+    var element = document.getElementById(id);
+    if ( element ) {
+        if ( element.style.display === "none" ) {
+            element.style.display = '';
         }
         else {
-            div.style.display = "none";
+            element.style.display = "none";
         }
     }
+};
+
+/**
+ * Append an element.
+ * @method appendElement
+ * @static
+ * @param {Number} parentId The id of the element to append to.
+ * @param {Object} element The element to append.
+ */
+dwv.html.appendElement = function (parentId, element)
+{
+    var node = document.getElementById(parentId);
+    if ( element ) {
+        // append
+        node.appendChild(element);
+        // trigger create event (mobile)
+        $('#'+parentId).trigger("create");
+    }
+};
+
+/**
+ * Create an element.
+ * @method createElement
+ * @static
+ * @param {String} type The type of the elemnt.
+ * @param {Number} id The id of the element
+ */
+dwv.html.createHiddenElement = function (type, id)
+{
+    var element = document.createElement(type);
+    element.id = id;
+    // hide by default
+    element.style.display = "none";
+    // return
+    return element;
 };

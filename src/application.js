@@ -49,7 +49,7 @@ dwv.App = function()
      * @method getVersion
      * @return {String} The version of the application.
      */
-    this.getVersion = function() { return "v0.7.0beta"; };
+    this.getVersion = function() { return "v0.8.0beta"; };
     
     /** 
      * Get the image.
@@ -491,10 +491,14 @@ dwv.App = function()
             drawStage = new Kinetic.Stage({
                 container: 'drawDiv',
                 width: dataWidth,
-                height: dataHeight
+                height: dataHeight,
+                listening: false
             });
             // create layer
-            drawLayer = new Kinetic.Layer();
+            drawLayer = new Kinetic.Layer({
+                listening: false,
+                hitGraphEnabled: false
+            });
             // add the layer to the stage
             drawStage.add(drawLayer);
         }
